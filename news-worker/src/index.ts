@@ -364,9 +364,13 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
               if (!data || data === "[DONE]") continue;
               try {
                 const parsed = JSON.parse(data);
-                const text = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (text) {
-                  await writer.write(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`));
+                const parts = parsed?.candidates?.[0]?.content?.parts ?? [];
+                for (const part of parts) {
+                  // Skip thinking parts (thought: true) — only send actual response text
+                  if (part.thought === true) continue;
+                  if (part.text) {
+                    await writer.write(encoder.encode(`data: ${JSON.stringify({ text: part.text })}\n\n`));
+                  }
                 }
               } catch {
                 // skip malformed chunks
