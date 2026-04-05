@@ -252,6 +252,19 @@ async function generateBriefing() {
     btn.disabled = false;
 }
 
+// ─── Strip Gemma thinking tags ────────────────────────────────────────
+function stripThinking(text) {
+    // Remove complete <think>...</think> blocks
+    return text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+}
+
+function isInsideThinkBlock(text) {
+    const lastOpen = text.lastIndexOf("<think>");
+    if (lastOpen === -1) return false;
+    const lastClose = text.lastIndexOf("</think>");
+    return lastClose < lastOpen;
+}
+
 // ─── Streaming helpers ────────────────────────────────────────────────
 async function streamToElement(question, articles, targetEl) {
     try {
@@ -281,13 +294,24 @@ async function streamToElement(question, articles, targetEl) {
                         const parsed = JSON.parse(data);
                         if (parsed.text) {
                             fullText += parsed.text;
-                            targetEl.innerHTML = renderMarkdown(fullText);
+                            if (isInsideThinkBlock(fullText)) {
+                                targetEl.innerHTML = '<p class="chat-typing">Thinking...</p>';
+                            } else {
+                                const cleaned = stripThinking(fullText);
+                                if (cleaned) targetEl.innerHTML = renderMarkdown(cleaned);
+                            }
                         }
                     } catch {}
                 }
             }
         }
-        if (!fullText) targetEl.innerHTML = '<p class="news-empty">No response received.</p>';
+
+        const final = stripThinking(fullText);
+        if (final) {
+            targetEl.innerHTML = renderMarkdown(final);
+        } else if (!fullText) {
+            targetEl.innerHTML = '<p class="news-empty">No response received.</p>';
+        }
     } catch (err) {
         targetEl.innerHTML = `<p class="chat-error">Error: ${escapeHtml(err.message)}</p>`;
     }
