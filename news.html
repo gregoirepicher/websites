@@ -46,7 +46,7 @@
                     <button class="btn btn-sm" id="briefing-refresh-btn" onclick="generateBriefing()">Regenerate</button>
                 </div>
                 <div id="briefing-body" class="briefing-body">
-                    <p class="news-loading">Generating briefing after feeds load...</p>
+                    <div class="spinner-wrap"><div class="spinner"></div>Generating briefing after feeds load...</div>
                 </div>
             </section>
 
@@ -220,7 +220,7 @@ function renderMarkdown(md) {
 async function generateBriefing() {
     const body = document.getElementById("briefing-body");
     const btn = document.getElementById("briefing-refresh-btn");
-    body.innerHTML = '<p class="news-loading">Generating briefing with Gemma 4...</p>';
+    body.innerHTML = '<div class="spinner-wrap"><div class="spinner"></div>Generating briefing with Gemma 4...</div>';
     btn.disabled = true;
 
     // Filter to last 48 hours only
@@ -295,7 +295,7 @@ async function streamToElement(question, articles, targetEl) {
                         if (parsed.text) {
                             fullText += parsed.text;
                             if (isInsideThinkBlock(fullText)) {
-                                targetEl.innerHTML = '<p class="chat-typing">Thinking...</p>';
+                                targetEl.innerHTML = '<div class="spinner-wrap"><div class="spinner"></div>Thinking...</div>';
                             } else {
                                 const cleaned = stripThinking(fullText);
                                 if (cleaned) targetEl.innerHTML = renderMarkdown(cleaned);
@@ -362,7 +362,7 @@ async function sendMessage() {
     document.getElementById("chat-send").disabled = true;
 
     appendMessage("user", `<p>${escapeHtml(question)}</p>`);
-    const aiMsg = appendMessage("ai", '<p class="chat-typing">Thinking...</p>');
+    const aiMsg = appendMessage("ai", '<div class="spinner-wrap"><div class="spinner"></div>Thinking...</div>');
 
     const articles = {};
     for (const [cat, items] of Object.entries(allArticles)) {
