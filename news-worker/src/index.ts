@@ -311,7 +311,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     : body.question;
 
   // Call Google AI Studio (Gemma 4)
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemma-4-27b-it:streamGenerateContent?alt=sse&key=${env.GOOGLE_AI_KEY}`;
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse&key=${env.GOOGLE_AI_KEY}`;
 
   try {
     const aiResponse = await fetch(apiUrl, {
@@ -423,7 +423,7 @@ export default {
 
       case "/api/health":
         return new Response(
-          JSON.stringify({ status: "ok", model: "gemma-4-27b-it" }),
+          JSON.stringify({ status: "ok", model: "gemma-4-31b-it" }),
           {
             headers: { ...corsHeaders(request), "Content-Type": "application/json" },
           }
