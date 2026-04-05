@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News — Gregoire Picher</title>
+    <meta name="description" content="Curated industry news: Animation, VFX, Pipeline, AI, and more.">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="site-header">
+        <nav class="nav">
+            <a href="index.html" class="nav-logo">GP</a>
+            <ul class="nav-links">
+                <li><a href="index.html#about">About</a></li>
+                <li><a href="index.html#experience">Experience</a></li>
+                <li><a href="news.html" class="nav-active">News</a></li>
+                <li><a href="index.html#contact">Contact</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <section class="news-hero">
+        <div class="container">
+            <h1>Industry News</h1>
+            <p class="hero-tagline">Curated feeds from Animation, VFX, Pipeline, AI, and beyond</p>
+            <div class="news-controls">
+                <button id="refresh-btn" class="btn" onclick="loadAllFeeds()">Refresh Feeds</button>
+                <span id="last-updated" class="news-timestamp"></span>
+            </div>
+        </div>
+    </section>
+
+    <main class="news-main">
+        <div class="container">
+            <div id="news-container"></div>
+        </div>
+    </main>
+
+    <!-- AI Chat Panel -->
+    <div id="chat-panel" class="chat-panel">
+        <div class="chat-header">
+            <div class="chat-header-left">
+                <span class="chat-model-badge">Gemma 4</span>
+                <span class="chat-title">AI News Assistant</span>
+            </div>
+            <button class="chat-toggle" onclick="toggleChat()" aria-label="Toggle chat">
+                <span id="chat-toggle-icon">&#9660;</span>
+            </button>
+        </div>
+        <div id="chat-body" class="chat-body">
+            <div id="chat-messages" class="chat-messages">
+                <div class="chat-message chat-ai">
+                    <p>Hi! I can help you explore today's news. Try asking:</p>
+                    <ul>
+                        <li>"Give me a daily digest prioritized by importance"</li>
+                        <li>"Show me articles about AI video generation"</li>
+                        <li>"What's new in Houdini and Blender?"</li>
+                        <li>"Summarize the top VFX industry news"</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <textarea id="chat-input" class="chat-input" placeholder="Ask about today's news..." rows="1"
+                    onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+                <button id="chat-send" class="chat-send" onclick="sendMessage()" aria-label="Send">&#9654;</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="site-footer">
+        <div class="container">
+            <p>&copy; 2026 Gregoire Picher</p>
+        </div>
+    </footer>
+
+<script>
+// ─── Configuration ────────────────────────────────────────────────────
+// After deploying the Cloudflare Worker, replace this with your worker URL
+// e.g., "https://news-worker.YOUR_SUBDOMAIN.workers.dev"
+const WORKER_URL = "https://news-worker.gregoirepicher.workers.dev";
+
+// Fallback to local backend if no worker URL is configured
+const BACKEND = WORKER_URL || "http://localhost:5000";
+const FEEDS_ENDPOINT = WORKER_URL ? BACKEND + "/api/feeds" : BACKEND + "/feeds";
+const CHAT_ENDPOINT = WORKER_URL ? BACKEND + "/api/chat" : BACKEND + "/digest";
+
+const CATEGORY_ORDER = [
+    "Animation & VFX Industry",
+    "DCC Tools & Pipeline",
+    "Generative AI & Synthetic Media",
+    "Broader Tech & AI News",
+    "Research & Academic",
+    "Studios & Production",
+];
+
+// ─── State ────────────────────────────────────────────────────────────
+let allArticles = {};
+let chatOpen = true;
+
+// ─── Feed Loading ─────────────────────────────────────────────────────
+async function loadAllFeeds() {
+    const container = document.getElementById("news-container");
+    const btn = document.getElementById("refresh-btn");
+    btn.disabled = true;
+    btn.textContent = "Loading...";
+    container.innerHTML = '<p class="news-loading">Fetching feeds...</p>';
+
+    try {
+        const res = await fetch(FEEDS_ENDPOINT);
+        if (!res.ok) throw new Error(`Server returned ${res.status}`);
+        allArticles = await res.json();
+
+        container.innerHTML = "";
+        for (const name of CATEGORY_ORDER) {
+            const articles = allArticles[name] || [];
+            container.appendChild(renderCategory(name, articles));
+        }
+
+        document.getElementById("last-updated").textContent =
+            "Updated " + new Date().toLocaleString();
+    } catch (err) {
+        container.innerHTML = `
+            <div class="digest-error">
+                <p><strong>Could not load feeds.</strong></p>
+                <p>Make sure the backend is running.</p>
+                <p class="news-meta" style="margin-top:12px">${escapeHtml(err.message)}</p>
+            </div>
+        `;
+    }
+
+    btn.disabled = false;
+    btn.textContent = "Refresh Feeds";
+}
+
+// ─── Rendering ────────────────────────────────────────────────────────
+function renderCategory(name, articles) {
+    const section = document.createElement("section");
+    section.className = "news-category";
+
+    const header = document.createElement("h2");
+    header.textContent = name;
+    section.appendChild(header);
+
+    if (articles.length === 0) {
+        const p = document.createElement("p");
+        p.className = "news-empty";
+        p.textContent = "No articles loaded — feeds may be unavailable.";
+        section.appendChild(p);
+        return section;
+    }
+
+    const list = document.createElement("ul");
+    list.className = "news-list";
+
+    for (const article of articles.slice(0, 20)) {
+        const li = document.createElement("li");
+        li.className = "news-item";
+
+        const date = article.pubDate
+            ? new Date(article.pubDate).toLocaleDateString("en-US", {
+                  month: "short", day: "numeric", year: "numeric"
+              })
+            : "";
+
+        li.innerHTML = `
+            <a href="${escapeHtml(article.link)}" target="_blank" rel="noopener noreferrer" class="news-link">
+                ${escapeHtml(article.title)}
+            </a>
+            <span class="news-meta">
+                <span class="news-source">${escapeHtml(article.source)}</span>
+                ${date ? `<span class="news-date">${date}</span>` : ""}
+            </span>
+        `;
+        list.appendChild(li);
+    }
+
+    section.appendChild(list);
+    return section;
+}
+
+function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// ─── Markdown Rendering ──────────────────────────────────────────────
+function renderMarkdown(md) {
+    return md
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>')
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/\n/g, '<br>');
+}
+
+// ─── Chat ─────────────────────────────────────────────────────────────
+function toggleChat() {
+    chatOpen = !chatOpen;
+    const body = document.getElementById("chat-body");
+    const icon = document.getElementById("chat-toggle-icon");
+    body.classList.toggle("chat-body-collapsed", !chatOpen);
+    icon.innerHTML = chatOpen ? "&#9660;" : "&#9650;";
+}
+
+function appendMessage(role, html) {
+    const messages = document.getElementById("chat-messages");
+    const div = document.createElement("div");
+    div.className = `chat-message chat-${role}`;
+    div.innerHTML = html;
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+    return div;
+}
+
+async function sendMessage() {
+    const input = document.getElementById("chat-input");
+    const question = input.value.trim();
+    if (!question) return;
+
+    input.value = "";
+    input.style.height = "auto";
+    document.getElementById("chat-send").disabled = true;
+
+    appendMessage("user", `<p>${escapeHtml(question)}</p>`);
+
+    const aiMsg = appendMessage("ai", '<p class="chat-typing">Thinking...</p>');
+
+    // Build article payload
+    const articles = {};
+    for (const [cat, items] of Object.entries(allArticles)) {
+        articles[cat] = items.map(a => ({
+            title: a.title,
+            source: a.source,
+            pubDate: a.pubDate,
+            link: a.link,
+        }));
+    }
+
+    if (WORKER_URL) {
+        // Streaming mode via Cloudflare Worker (SSE)
+        await streamChat(question, articles, aiMsg);
+    } else {
+        // Non-streaming fallback for local backend
+        await localChat(question, articles, aiMsg);
+    }
+
+    document.getElementById("chat-send").disabled = false;
+}
+
+async function streamChat(question, articles, msgEl) {
+    try {
+        const res = await fetch(CHAT_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question, articles }),
+        });
+
+        if (!res.ok) throw new Error(`Server returned ${res.status}`);
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = "";
+        let buffer = "";
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+                if (line.startsWith("data: ")) {
+                    const data = line.slice(6).trim();
+                    if (data === "[DONE]") continue;
+                    try {
+                        const parsed = JSON.parse(data);
+                        if (parsed.text) {
+                            fullText += parsed.text;
+                            msgEl.innerHTML = renderMarkdown(fullText);
+                            document.getElementById("chat-messages").scrollTop =
+                                document.getElementById("chat-messages").scrollHeight;
+                        }
+                    } catch {}
+                }
+            }
+        }
+
+        if (!fullText) {
+            msgEl.innerHTML = '<p class="chat-error">No response received.</p>';
+        }
+    } catch (err) {
+        msgEl.innerHTML = `<p class="chat-error">Error: ${escapeHtml(err.message)}</p>`;
+    }
+}
+
+async function localChat(question, articles, msgEl) {
+    // Fallback: use local Ollama backend (non-streaming)
+    try {
+        const res = await fetch(CHAT_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ articles, question }),
+        });
+
+        if (!res.ok) throw new Error(`Server returned ${res.status}`);
+        const data = await res.json();
+        const text = data.digest || data.response || "No response.";
+        msgEl.innerHTML = renderMarkdown(text);
+    } catch (err) {
+        msgEl.innerHTML = `<p class="chat-error">Error: ${escapeHtml(err.message)}</p>`;
+    }
+}
+
+// Auto-resize textarea
+document.getElementById("chat-input").addEventListener("input", function() {
+    this.style.height = "auto";
+    this.style.height = Math.min(this.scrollHeight, 120) + "px";
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────
+loadAllFeeds();
+</script>
+
+</body>
+</html>

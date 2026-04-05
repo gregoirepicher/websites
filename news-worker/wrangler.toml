@@ -1,0 +1,11 @@
+name = "news-worker"
+main = "src/index.ts"
+compatibility_date = "2026-04-01"
+
+[[kv_namespaces]]
+binding = "NEWS_CACHE"
+id = "27840a435e044269aa69346dd4d72f10"
+preview_id = "YOUR_KV_PREVIEW_ID"
+
+# After creating the worker, set your API key:
+#   npx wrangler secret put GOOGLE_AI_KEY
