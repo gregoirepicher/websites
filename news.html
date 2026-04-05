@@ -266,6 +266,8 @@ function isInsideThinkBlock(text) {
 }
 
 // ─── Streaming helpers ────────────────────────────────────────────────
+const SPINNER_HTML = '<div class="spinner-wrap streaming-indicator"><div class="spinner"></div>Generating...</div>';
+
 async function streamToElement(question, articles, targetEl) {
     try {
         const res = await fetch(CHAT_ENDPOINT, {
@@ -294,11 +296,12 @@ async function streamToElement(question, articles, targetEl) {
                         const parsed = JSON.parse(data);
                         if (parsed.text) {
                             fullText += parsed.text;
-                            if (isInsideThinkBlock(fullText)) {
-                                targetEl.innerHTML = '<div class="spinner-wrap"><div class="spinner"></div>Thinking...</div>';
+                            const cleaned = stripThinking(fullText);
+                            // Always show spinner + content while streaming
+                            if (cleaned) {
+                                targetEl.innerHTML = renderMarkdown(cleaned) + SPINNER_HTML;
                             } else {
-                                const cleaned = stripThinking(fullText);
-                                if (cleaned) targetEl.innerHTML = renderMarkdown(cleaned);
+                                targetEl.innerHTML = SPINNER_HTML;
                             }
                         }
                     } catch {}
@@ -306,12 +309,12 @@ async function streamToElement(question, articles, targetEl) {
             }
         }
 
+        // Streaming complete — remove spinner, show final content
         const final = stripThinking(fullText);
-        if (final) {
-            targetEl.innerHTML = renderMarkdown(final);
-        } else if (!fullText) {
-            targetEl.innerHTML = '<p class="news-empty">No response received.</p>';
-        }
+        targetEl.innerHTML = final
+            ? renderMarkdown(final)
+            : '<p class="news-empty">No response received.</p>';
+
     } catch (err) {
         targetEl.innerHTML = `<p class="chat-error">Error: ${escapeHtml(err.message)}</p>`;
     }
