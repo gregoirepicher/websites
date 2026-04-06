@@ -488,7 +488,10 @@ async function handleYouTube(request: Request, env: Env): Promise<Response> {
   });
 
   const json = JSON.stringify(videos);
-  await env.NEWS_CACHE.put("youtube:latest", json, { expirationTtl: CACHE_TTL });
+  // Only cache if we actually got results — avoids persisting empty responses from rate limiting
+  if (videos.length > 0) {
+    await env.NEWS_CACHE.put("youtube:latest", json, { expirationTtl: CACHE_TTL });
+  }
 
   return new Response(json, {
     headers: {
