@@ -95,12 +95,10 @@ const CATEGORIES: Record<string, FeedConfig[]> = {
   ],
 };
 
-const CHANNEL_ID_TTL = 60 * 60 * 24 * 7; // Cache channel IDs for 7 days
-
 async function resolveHandle(handle: string, env: Env): Promise<FeedConfig | null> {
   const cacheKey = `yt:id:${handle.toLowerCase()}`;
 
-  // Check KV cache first
+  // Check KV cache first — channel IDs never change, so no expiry needed
   const cached = await env.NEWS_CACHE.get(cacheKey);
   if (cached) {
     const { title, channelId } = JSON.parse(cached);
@@ -122,9 +120,8 @@ async function resolveHandle(handle: string, env: Env): Promise<FeedConfig | nul
     const channelId = idMatch[1];
     const title = nameMatch ? nameMatch[1] : handle.replace("@", "");
 
-    await env.NEWS_CACHE.put(cacheKey, JSON.stringify({ title, channelId }), {
-      expirationTtl: CHANNEL_ID_TTL,
-    });
+    // Store permanently — channel IDs never change
+    await env.NEWS_CACHE.put(cacheKey, JSON.stringify({ title, channelId }));
 
     return { title, url: `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}` };
   } catch {
@@ -133,10 +130,13 @@ async function resolveHandle(handle: string, env: Env): Promise<FeedConfig | nul
 }
 
 async function getYouTubeFeeds(env: Env): Promise<FeedConfig[]> {
-  const results = await Promise.all(
-    (YOUTUBE_HANDLES as string[]).map((handle) => resolveHandle(handle, env))
-  );
-  return results.filter((f): f is FeedConfig => f !== null);
+  // Resolve handles sequentially to avoid YouTube rate limiting from Cloudflare IPs
+  const feeds: FeedConfig[] = [];
+  for (const handle of YOUTUBE_HANDLES as string[]) {
+    const feed = await resolveHandle(handle, env);
+    if (feed) feeds.push(feed);
+  }
+  return feeds;
 }
 
 const ITEMS_PER_FEED = 5;
