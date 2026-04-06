@@ -8,6 +8,7 @@
  */
 
 import { XMLParser } from "fast-xml-parser";
+import YOUTUBE_HANDLES from "../youtube-channels.json";
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -94,19 +95,49 @@ const CATEGORIES: Record<string, FeedConfig[]> = {
   ],
 };
 
-const YOUTUBE_CHANNELS: FeedConfig[] = [
-  { title: "Bad X Studio", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCOQ6GGRyyu8S3jahnUz2zHw" },
-  { title: "MrEflow", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UChpleBmo18P08aKCIgti38g" },
-  { title: "Pixel Artistry", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCRGb8yCnI5-upL3hT4oiOZw" },
-  { title: "Pixaroma", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCmMbwA-s3GZDKVzGZ-kPwaQ" },
-  { title: "Stefan AI 3D", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCRW08KcTVjXEmBzBsVl7XjA" },
-  { title: "Theoretically Media", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC9Ryt3XOGYBoAJVsBHNGDzA" },
-  { title: "Curious Refuge", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UClnFtyUEaxQOCd1s5NKYGFA" },
-  { title: "Inspiration Tuts", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCDdv3C21EFv7MxBMu70OExw" },
-  { title: "Matt Vid Pro", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC5Wz4fFacYuON6IKbhSa7Zw" },
-  { title: "Comfy Org", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCsOXR1n2MR15vuK2htE5EkQ" },
-  { title: "Unreal Sensei", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCue7TFlrt9FxXarpsl872Dg" },
-];
+const CHANNEL_ID_TTL = 60 * 60 * 24 * 7; // Cache channel IDs for 7 days
+
+async function resolveHandle(handle: string, env: Env): Promise<FeedConfig | null> {
+  const cacheKey = `yt:id:${handle.toLowerCase()}`;
+
+  // Check KV cache first
+  const cached = await env.NEWS_CACHE.get(cacheKey);
+  if (cached) {
+    const { title, channelId } = JSON.parse(cached);
+    return { title, url: `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}` };
+  }
+
+  // Fetch YouTube page and extract externalId + channel name
+  try {
+    const res = await fetch(`https://www.youtube.com/${handle}`, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+    if (!res.ok) return null;
+    const text = await res.text();
+
+    const idMatch = text.match(/"externalId":"(UC[^"]+)"/);
+    const nameMatch = text.match(/"title":"([^"]+)","description"/);
+    if (!idMatch) return null;
+
+    const channelId = idMatch[1];
+    const title = nameMatch ? nameMatch[1] : handle.replace("@", "");
+
+    await env.NEWS_CACHE.put(cacheKey, JSON.stringify({ title, channelId }), {
+      expirationTtl: CHANNEL_ID_TTL,
+    });
+
+    return { title, url: `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}` };
+  } catch {
+    return null;
+  }
+}
+
+async function getYouTubeFeeds(env: Env): Promise<FeedConfig[]> {
+  const results = await Promise.all(
+    (YOUTUBE_HANDLES as string[]).map((handle) => resolveHandle(handle, env))
+  );
+  return results.filter((f): f is FeedConfig => f !== null);
+}
 
 const ITEMS_PER_FEED = 5;
 const CACHE_TTL = 900; // 15 minutes
@@ -443,7 +474,8 @@ async function handleYouTube(request: Request, env: Env): Promise<Response> {
   }
 
   const videos: Article[] = [];
-  const feedResults = await Promise.allSettled(YOUTUBE_CHANNELS.map((f) => fetchFeed(f)));
+  const channels = await getYouTubeFeeds(env);
+  const feedResults = await Promise.allSettled(channels.map((f) => fetchFeed(f)));
   for (const r of feedResults) {
     if (r.status === "fulfilled" && r.value.length > 0) {
       videos.push(r.value[0]);
