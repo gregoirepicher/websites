@@ -21,6 +21,8 @@ interface Article {
   link: string;
   pubDate: string;
   source: string;
+  thumbnail?: string;
+  videoId?: string;
 }
 
 interface FeedConfig {
@@ -91,6 +93,20 @@ const CATEGORIES: Record<string, FeedConfig[]> = {
     { title: "Variety Film", url: "http://variety.com/v/film/feed/" },
   ],
 };
+
+const YOUTUBE_CHANNELS: FeedConfig[] = [
+  { title: "Bad X Studio", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCOQ6GGRyyu8S3jahnUz2zHw" },
+  { title: "MrEflow", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UChpleBmo18P08aKCIgti38g" },
+  { title: "Pixel Artistry", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCRGb8yCnI5-upL3hT4oiOZw" },
+  { title: "Pixaroma", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCmMbwA-s3GZDKVzGZ-kPwaQ" },
+  { title: "Stefan AI 3D", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCRW08KcTVjXEmBzBsVl7XjA" },
+  { title: "Theoretically Media", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC9Ryt3XOGYBoAJVsBHNGDzA" },
+  { title: "Curious Refuge", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UClnFtyUEaxQOCd1s5NKYGFA" },
+  { title: "Inspiration Tuts", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCDdv3C21EFv7MxBMu70OExw" },
+  { title: "Matt Vid Pro", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC5Wz4fFacYuON6IKbhSa7Zw" },
+  { title: "Comfy Org", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCsOXR1n2MR15vuK2htE5EkQ" },
+  { title: "Unreal Sensei", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCue7TFlrt9FxXarpsl872Dg" },
+];
 
 const ITEMS_PER_FEED = 5;
 const CACHE_TTL = 900; // 15 minutes
@@ -173,11 +189,18 @@ async function fetchFeed(feed: FeedConfig): Promise<Article[]> {
         } else if (entry.link?.["@_href"]) {
           link = entry.link["@_href"];
         }
+
+        // Extract YouTube thumbnail and video ID if available
+        const videoId = entry["yt:videoId"] || "";
+        const thumbnail = entry["media:group"]?.["media:thumbnail"]?.["@_url"] || "";
+
         return {
           title: typeof entry.title === "string" ? entry.title : entry.title?.["#text"] || "",
           link,
           pubDate: entry.published || entry.updated || "",
           source: feed.title,
+          ...(thumbnail && { thumbnail }),
+          ...(videoId && { videoId }),
         };
       });
     }
@@ -247,12 +270,27 @@ async function handleFeeds(request: Request, env: Env): Promise<Response> {
     return { name: catName, articles: deduplicateArticles(articles) };
   });
 
-  const results = await Promise.all(allPromises);
+  // Fetch YouTube channels in parallel
+  const ytPromise = (async () => {
+    const feedResults = await Promise.allSettled(YOUTUBE_CHANNELS.map((f) => fetchFeed(f)));
+    const videos: Article[] = [];
+    for (const r of feedResults) {
+      if (r.status === "fulfilled") videos.push(...r.value);
+    }
+    videos.sort((a, b) => {
+      const da = new Date(a.pubDate).getTime() || 0;
+      const db = new Date(b.pubDate).getTime() || 0;
+      return db - da;
+    });
+    return deduplicateArticles(videos);
+  })();
+
+  const [results, ytVideos] = await Promise.all([Promise.all(allPromises), ytPromise]);
   for (const { name, articles } of results) {
     result[name] = articles;
   }
 
-  const json = JSON.stringify(result);
+  const json = JSON.stringify({ categories: result, youtube: ytVideos });
 
   // Store in KV with TTL
   await env.NEWS_CACHE.put("feeds:latest", json, { expirationTtl: CACHE_TTL });

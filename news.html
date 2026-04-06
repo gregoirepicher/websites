@@ -50,6 +50,15 @@
                 </div>
             </section>
 
+            <!-- YouTube Videos -->
+            <section class="yt-section" id="yt-section" style="display:none;">
+                <div class="yt-section-header">
+                    <h2 class="yt-section-title">Latest Videos</h2>
+                    <span class="yt-section-subtitle">From YouTube channels you follow</span>
+                </div>
+                <div id="yt-container" class="yt-grid"></div>
+            </section>
+
             <!-- Category Grid -->
             <div id="news-container" class="news-grid"></div>
 
@@ -111,6 +120,7 @@ const CATEGORY_ORDER = [
 
 // ─── State ────────────────────────────────────────────────────────────
 let allArticles = {};
+let ytVideos = [];
 let chatOpen = true;
 
 // ─── Feed Loading ─────────────────────────────────────────────────────
@@ -124,13 +134,25 @@ async function loadAllFeeds() {
     try {
         const res = await fetch(FEEDS_ENDPOINT);
         if (!res.ok) throw new Error(`Server returned ${res.status}`);
-        allArticles = await res.json();
+        const data = await res.json();
+
+        // Handle both new format { categories, youtube } and legacy flat format
+        if (data.categories) {
+            allArticles = data.categories;
+            ytVideos = data.youtube || [];
+        } else {
+            allArticles = data;
+            ytVideos = [];
+        }
 
         container.innerHTML = "";
         for (const name of CATEGORY_ORDER) {
             const articles = allArticles[name] || [];
             container.appendChild(renderCategoryBox(name, articles));
         }
+
+        // Render YouTube section
+        renderYouTubeSection(ytVideos);
 
         document.getElementById("last-updated").textContent =
             "Updated " + new Date().toLocaleString();
@@ -148,6 +170,49 @@ async function loadAllFeeds() {
 
     btn.disabled = false;
     btn.textContent = "Refresh Feeds";
+}
+
+// ─── YouTube Section ─────────────────────────────────────────────────
+function renderYouTubeSection(videos) {
+    const section = document.getElementById("yt-section");
+    const container = document.getElementById("yt-container");
+
+    if (!videos || videos.length === 0) {
+        section.style.display = "none";
+        return;
+    }
+
+    section.style.display = "";
+    container.innerHTML = "";
+
+    for (const video of videos) {
+        const card = document.createElement("a");
+        card.className = "yt-card";
+        card.href = video.link;
+        card.target = "_blank";
+        card.rel = "noopener noreferrer";
+
+        const thumbUrl = video.thumbnail ||
+            (video.videoId ? `https://i.ytimg.com/vi/${video.videoId}/mqdefault.jpg` : "");
+
+        const date = video.pubDate
+            ? new Date(video.pubDate).toLocaleDateString("en-US", {
+                  month: "short", day: "numeric"
+              })
+            : "";
+
+        card.innerHTML = `
+            ${thumbUrl ? `<div class="yt-thumb"><img src="${escapeHtml(thumbUrl)}" alt="" loading="lazy"></div>` : ""}
+            <div class="yt-info">
+                <span class="yt-title">${escapeHtml(video.title)}</span>
+                <span class="news-meta">
+                    <span class="news-source">${escapeHtml(video.source)}</span>
+                    ${date ? `<span class="news-date">${date}</span>` : ""}
+                </span>
+            </div>
+        `;
+        container.appendChild(card);
+    }
 }
 
 // ─── Category Box Rendering ───────────────────────────────────────────

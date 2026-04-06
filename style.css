@@ -348,6 +348,91 @@ body {
 
 /* Category Grid */
 
+/* YouTube Videos Section */
+
+.yt-section {
+    margin-bottom: 48px;
+}
+
+.yt-section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.yt-section-title {
+    font-family: var(--font-heading);
+    font-size: 1.3rem;
+    color: var(--color-heading);
+    margin: 0;
+}
+
+.yt-section-subtitle {
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+}
+
+.yt-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.yt-card {
+    background: var(--color-bg-alt);
+    border: 1px solid rgba(226, 176, 74, 0.12);
+    border-radius: 8px;
+    overflow: hidden;
+    text-decoration: none;
+    transition: border-color 0.3s ease, transform 0.2s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.yt-card:hover {
+    border-color: rgba(226, 176, 74, 0.28);
+    transform: translateY(-2px);
+}
+
+.yt-thumb {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.yt-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.yt-info {
+    padding: 10px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.yt-title {
+    color: var(--color-heading);
+    font-size: 0.85rem;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.yt-card:hover .yt-title {
+    color: var(--color-accent);
+}
+
+/* News Grid */
+
 .news-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -841,6 +926,15 @@ body {
         height: 340px;
     }
 
+    .yt-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .yt-section-header {
+        flex-direction: column;
+        gap: 4px;
+    }
+
     .briefing-header {
         flex-wrap: wrap;
         gap: 8px;
@@ -853,6 +947,10 @@ body {
 
 @media (min-width: 601px) and (max-width: 960px) {
     .news-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .yt-grid {
         grid-template-columns: repeat(2, 1fr);
     }
 }
