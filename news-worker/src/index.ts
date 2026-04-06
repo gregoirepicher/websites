@@ -270,19 +270,22 @@ async function handleFeeds(request: Request, env: Env): Promise<Response> {
     return { name: catName, articles: deduplicateArticles(articles) };
   });
 
-  // Fetch YouTube channels in parallel
+  // Fetch YouTube channels in parallel — keep only the latest video per channel
   const ytPromise = (async () => {
     const feedResults = await Promise.allSettled(YOUTUBE_CHANNELS.map((f) => fetchFeed(f)));
     const videos: Article[] = [];
     for (const r of feedResults) {
-      if (r.status === "fulfilled") videos.push(...r.value);
+      if (r.status === "fulfilled" && r.value.length > 0) {
+        // Each feed is already sorted by date; take only the first (newest) video
+        videos.push(r.value[0]);
+      }
     }
     videos.sort((a, b) => {
       const da = new Date(a.pubDate).getTime() || 0;
       const db = new Date(b.pubDate).getTime() || 0;
       return db - da;
     });
-    return deduplicateArticles(videos);
+    return videos;
   })();
 
   const [results, ytVideos] = await Promise.all([Promise.all(allPromises), ytPromise]);

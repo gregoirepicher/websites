@@ -51,13 +51,12 @@
             </section>
 
             <!-- YouTube Videos -->
-            <div class="yt-box" id="yt-section" style="display:none;">
-                <div class="news-box-header">
-                    <h3>Latest Videos</h3>
-                    <span class="news-box-count" id="yt-count">0</span>
+            <section class="yt-section" id="yt-section" style="display:none;">
+                <div class="yt-section-header">
+                    <h2 class="yt-section-title">Latest Videos</h2>
                 </div>
-                <div id="yt-container" class="yt-scroll"></div>
-            </div>
+                <div id="yt-container" class="yt-grid-scroll"></div>
+            </section>
 
             <!-- Category Grid -->
             <div id="news-container" class="news-grid"></div>
@@ -184,12 +183,14 @@ function renderYouTubeSection(videos) {
 
     section.style.display = "";
     container.innerHTML = "";
-    document.getElementById("yt-count").textContent = videos.length;
-
-    const list = document.createElement("ul");
-    list.className = "yt-list";
 
     for (const video of videos) {
+        const card = document.createElement("a");
+        card.className = "yt-card";
+        card.href = video.link;
+        card.target = "_blank";
+        card.rel = "noopener noreferrer";
+
         const thumbUrl = video.thumbnail ||
             (video.videoId ? `https://i.ytimg.com/vi/${video.videoId}/mqdefault.jpg` : "");
 
@@ -199,24 +200,18 @@ function renderYouTubeSection(videos) {
               })
             : "";
 
-        const li = document.createElement("li");
-        li.className = "yt-item";
-        li.innerHTML = `
-            <a href="${escapeHtml(video.link)}" target="_blank" rel="noopener noreferrer" class="yt-item-link">
-                ${thumbUrl ? `<img class="yt-thumb" src="${escapeHtml(thumbUrl)}" alt="" loading="lazy">` : ""}
-                <div class="yt-info">
-                    <span class="yt-title">${escapeHtml(video.title)}</span>
-                    <span class="news-meta">
-                        <span class="news-source">${escapeHtml(video.source)}</span>
-                        ${date ? `<span class="news-date">${date}</span>` : ""}
-                    </span>
-                </div>
-            </a>
+        card.innerHTML = `
+            ${thumbUrl ? `<div class="yt-thumb"><img src="${escapeHtml(thumbUrl)}" alt="" loading="lazy"></div>` : ""}
+            <div class="yt-info">
+                <span class="yt-title">${escapeHtml(video.title)}</span>
+                <span class="news-meta">
+                    <span class="news-source">${escapeHtml(video.source)}</span>
+                    ${date ? `<span class="news-date">${date}</span>` : ""}
+                </span>
+            </div>
         `;
-        list.appendChild(li);
+        container.appendChild(card);
     }
-
-    container.appendChild(list);
 }
 
 // ─── Category Box Rendering ───────────────────────────────────────────
