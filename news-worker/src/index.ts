@@ -270,30 +270,12 @@ async function handleFeeds(request: Request, env: Env): Promise<Response> {
     return { name: catName, articles: deduplicateArticles(articles) };
   });
 
-  // Fetch YouTube channels in parallel — keep only the latest video per channel
-  const ytPromise = (async () => {
-    const feedResults = await Promise.allSettled(YOUTUBE_CHANNELS.map((f) => fetchFeed(f)));
-    const videos: Article[] = [];
-    for (const r of feedResults) {
-      if (r.status === "fulfilled" && r.value.length > 0) {
-        // Each feed is already sorted by date; take only the first (newest) video
-        videos.push(r.value[0]);
-      }
-    }
-    videos.sort((a, b) => {
-      const da = new Date(a.pubDate).getTime() || 0;
-      const db = new Date(b.pubDate).getTime() || 0;
-      return db - da;
-    });
-    return videos;
-  })();
-
-  const [results, ytVideos] = await Promise.all([Promise.all(allPromises), ytPromise]);
+  const results = await Promise.all(allPromises);
   for (const { name, articles } of results) {
     result[name] = articles;
   }
 
-  const json = JSON.stringify({ categories: result, youtube: ytVideos });
+  const json = JSON.stringify({ categories: result });
 
   // Store in KV with TTL
   await env.NEWS_CACHE.put("feeds:latest", json, { expirationTtl: CACHE_TTL });
@@ -446,6 +428,45 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   }
 }
 
+// ─── /api/youtube Handler ─────────────────────────────────────────────
+
+async function handleYouTube(request: Request, env: Env): Promise<Response> {
+  const cached = await env.NEWS_CACHE.get("youtube:latest");
+  if (cached) {
+    return new Response(cached, {
+      headers: {
+        ...corsHeaders(request),
+        "Content-Type": "application/json",
+        "Cache-Control": "public, max-age=300",
+      },
+    });
+  }
+
+  const videos: Article[] = [];
+  const feedResults = await Promise.allSettled(YOUTUBE_CHANNELS.map((f) => fetchFeed(f)));
+  for (const r of feedResults) {
+    if (r.status === "fulfilled" && r.value.length > 0) {
+      videos.push(r.value[0]);
+    }
+  }
+  videos.sort((a, b) => {
+    const da = new Date(a.pubDate).getTime() || 0;
+    const db = new Date(b.pubDate).getTime() || 0;
+    return db - da;
+  });
+
+  const json = JSON.stringify(videos);
+  await env.NEWS_CACHE.put("youtube:latest", json, { expirationTtl: CACHE_TTL });
+
+  return new Response(json, {
+    headers: {
+      ...corsHeaders(request),
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=300",
+    },
+  });
+}
+
 // ─── Router ───────────────────────────────────────────────────────────
 
 export default {
@@ -460,6 +481,9 @@ export default {
       case "/api/feeds":
         return handleFeeds(request, env);
 
+      case "/api/youtube":
+        return handleYouTube(request, env);
+
       case "/api/chat":
         if (request.method !== "POST") {
           return new Response("Method not allowed", { status: 405 });
@@ -473,6 +497,7 @@ export default {
             headers: { ...corsHeaders(request), "Content-Type": "application/json" },
           }
         );
+
 
       default:
         return new Response("Not found", { status: 404 });

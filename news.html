@@ -106,6 +106,7 @@
 const WORKER_URL = "https://news-worker.gregoirepicher.workers.dev";
 const BACKEND = WORKER_URL || "http://localhost:5000";
 const FEEDS_ENDPOINT = WORKER_URL ? BACKEND + "/api/feeds" : BACKEND + "/feeds";
+const YOUTUBE_ENDPOINT = BACKEND + "/api/youtube";
 const CHAT_ENDPOINT = WORKER_URL ? BACKEND + "/api/chat" : BACKEND + "/digest";
 
 const CATEGORY_ORDER = [
@@ -131,16 +132,19 @@ async function loadAllFeeds() {
     container.innerHTML = '<p class="news-loading" style="grid-column:1/-1">Fetching feeds...</p>';
 
     try {
-        const res = await fetch(FEEDS_ENDPOINT);
-        if (!res.ok) throw new Error(`Server returned ${res.status}`);
-        const data = await res.json();
+        const [feedsRes, ytRes] = await Promise.all([
+            fetch(FEEDS_ENDPOINT),
+            fetch(YOUTUBE_ENDPOINT).catch(() => null),
+        ]);
 
-        // Handle both new format { categories, youtube } and legacy flat format
-        if (data.categories) {
-            allArticles = data.categories;
-            ytVideos = data.youtube || [];
+        if (!feedsRes.ok) throw new Error(`Server returned ${feedsRes.status}`);
+        const data = await feedsRes.json();
+        allArticles = data.categories || data;
+
+        // Parse YouTube (separate endpoint, non-blocking)
+        if (ytRes && ytRes.ok) {
+            ytVideos = await ytRes.json();
         } else {
-            allArticles = data;
             ytVideos = [];
         }
 
