@@ -460,8 +460,37 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 }
 
 // ─── /api/youtube Handler ─────────────────────────────────────────────
+//
+// Resilience strategy (to survive YouTube's flaky RSS endpoint):
+//   1. Short-lived aggregate cache (15 min) for fast repeat hits.
+//   2. Per-channel permanent storage in KV — each channel's latest video is
+//      stored forever and only overwritten when a NEWER video is successfully
+//      fetched. If a fetch fails, we fall back to the previously stored video.
+//   3. Retry each feed up to 3 times before giving up.
+//   4. The response is built from the union of freshly-fetched and stored
+//      videos, so the display never goes blank as long as SOME channel has
+//      ever been seen.
+
+async function fetchFeedWithRetry(feed: FeedConfig, retries = 3): Promise<Article[]> {
+  for (let i = 0; i < retries; i++) {
+    const result = await fetchFeed(feed);
+    if (result.length > 0) return result;
+    if (i < retries - 1) {
+      // Small backoff (250ms, 500ms) — YouTube's 404/500s are transient
+      await new Promise((r) => setTimeout(r, 250 * (i + 1)));
+    }
+  }
+  return [];
+}
+
+function channelStoreKey(feedUrl: string): string {
+  // Extract channel_id from the URL
+  const m = feedUrl.match(/channel_id=([^&]+)/);
+  return `yt:video:${m ? m[1] : feedUrl}`;
+}
 
 async function handleYouTube(request: Request, env: Env): Promise<Response> {
+  // Fast path: aggregate cache
   const cached = await env.NEWS_CACHE.get("youtube:latest");
   if (cached) {
     return new Response(cached, {
@@ -473,14 +502,40 @@ async function handleYouTube(request: Request, env: Env): Promise<Response> {
     });
   }
 
-  const videos: Article[] = [];
   const channels = await getYouTubeFeeds(env);
-  const feedResults = await Promise.allSettled(channels.map((f) => fetchFeed(f)));
-  for (const r of feedResults) {
-    if (r.status === "fulfilled" && r.value.length > 0) {
-      videos.push(r.value[0]);
-    }
-  }
+
+  // For each channel: try to fetch fresh; if it fails, fall back to stored.
+  // Update storage only when a newer video is successfully fetched.
+  const results = await Promise.all(
+    channels.map(async (channel): Promise<Article | null> => {
+      const storeKey = channelStoreKey(channel.url);
+      const stored = await env.NEWS_CACHE.get(storeKey);
+      const storedVideo: Article | null = stored ? JSON.parse(stored) : null;
+
+      const fresh = await fetchFeedWithRetry(channel, 3);
+      if (fresh.length > 0) {
+        const latest = fresh[0];
+        // Only overwrite storage if the fetched video is actually newer
+        // (or if we have nothing stored yet)
+        if (!storedVideo) {
+          await env.NEWS_CACHE.put(storeKey, JSON.stringify(latest));
+          return latest;
+        }
+        const storedTime = new Date(storedVideo.pubDate).getTime() || 0;
+        const freshTime = new Date(latest.pubDate).getTime() || 0;
+        if (freshTime >= storedTime) {
+          await env.NEWS_CACHE.put(storeKey, JSON.stringify(latest));
+          return latest;
+        }
+        return storedVideo;
+      }
+
+      // Fetch failed — fall back to last known good
+      return storedVideo;
+    })
+  );
+
+  const videos: Article[] = results.filter((v): v is Article => v !== null);
   videos.sort((a, b) => {
     const da = new Date(a.pubDate).getTime() || 0;
     const db = new Date(b.pubDate).getTime() || 0;
@@ -488,7 +543,7 @@ async function handleYouTube(request: Request, env: Env): Promise<Response> {
   });
 
   const json = JSON.stringify(videos);
-  // Only cache if we actually got results — avoids persisting empty responses from rate limiting
+  // Only cache the aggregate if we actually got results
   if (videos.length > 0) {
     await env.NEWS_CACHE.put("youtube:latest", json, { expirationTtl: CACHE_TTL });
   }
