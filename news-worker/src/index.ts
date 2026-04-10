@@ -67,7 +67,7 @@ const CATEGORIES: Record<string, FeedConfig[]> = {
     { title: "Maya Learning Channel", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCHmAXsicpLK2EHMZo5_BtDA" },
     { title: "Open Source For You", url: "https://www.opensourceforu.com/feed/" },
   ],
-  "Generative AI & Synthetic Media": [
+  "Generative AI": [
     { title: "The Decoder", url: "https://the-decoder.com/feed/" },
     { title: "Synthedia", url: "https://synthedia.substack.com/feed" },
     { title: "AI Models Digest", url: "https://aimodels.substack.com/feed" },
