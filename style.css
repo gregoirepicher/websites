@@ -574,6 +574,8 @@ body {
 
 .news-list {
     list-style: none;
+    padding: 0;
+    margin: 0;
 }
 
 .news-item {
@@ -586,12 +588,15 @@ body {
 }
 
 .news-item-icon {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
+    max-width: 14px;
+    max-height: 14px;
     border-radius: 2px;
     flex-shrink: 0;
     margin-top: 3px;
     opacity: 0.8;
+    object-fit: contain;
 }
 
 .news-item:last-child {
