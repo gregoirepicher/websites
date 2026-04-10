@@ -240,11 +240,8 @@ function renderYouTubeSection(videos) {
     container.innerHTML = "";
 
     for (const video of videos) {
-        const card = document.createElement("a");
+        const card = document.createElement("div");
         card.className = "yt-card";
-        card.href = video.link;
-        card.target = "_blank";
-        card.rel = "noopener noreferrer";
 
         const thumbUrl = video.thumbnail ||
             (video.videoId ? `https://i.ytimg.com/vi/${video.videoId}/mqdefault.jpg` : "");
@@ -256,15 +253,21 @@ function renderYouTubeSection(videos) {
             : "";
 
         const durationHtml = video.duration ? `<span class="yt-duration">${escapeHtml(video.duration)}</span>` : "";
+        const saved = isItemSaved(video.link);
 
         card.innerHTML = `
-            ${thumbUrl ? `<div class="yt-thumb"><img src="${escapeHtml(thumbUrl)}" alt="" loading="lazy">${durationHtml}</div>` : ""}
-            <div class="yt-info">
-                <span class="yt-title">${escapeHtml(video.title)}</span>
+            <a href="${escapeHtml(video.link)}" target="_blank" rel="noopener noreferrer" class="yt-card-link">
+                ${thumbUrl ? `<div class="yt-thumb"><img src="${escapeHtml(thumbUrl)}" alt="" loading="lazy">${durationHtml}</div>` : ""}
+                <div class="yt-info">
+                    <span class="yt-title">${escapeHtml(video.title)}</span>
+                </div>
+            </a>
+            <div class="yt-meta-row">
                 <span class="news-meta">
                     <span class="news-source">${escapeHtml(video.source)}</span>
                     ${date ? `<span class="news-date">${date}</span>` : ""}
                 </span>
+                <button class="like-btn ${saved ? "liked" : ""}" aria-label="Save video" data-article="${escapeAttr(video)}" onclick="event.stopPropagation(); toggleSaveItem(JSON.parse(this.dataset.article)); this.classList.toggle('liked');">&#9829;</button>
             </div>
         `;
         container.appendChild(card);

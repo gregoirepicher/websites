@@ -97,12 +97,12 @@ const CATEGORIES: Record<string, FeedConfig[]> = {
     { title: "NVIDIA Research Blog", url: "https://blogs.nvidia.com/feed/" },
   ],
   "Studios & Production": [
-    { title: "Framestore", url: "https://www.framestore.com/feed" },
-    { title: "DNEG", url: "https://www.dneg.com/feed/" },
-    { title: "Pixar", url: "https://www.pixar.com/feed" },
     { title: "ILM", url: "https://www.ilm.com/feed/" },
     { title: "Deadline Film", url: "http://deadline.com/v/film/feed/" },
     { title: "Variety Film", url: "http://variety.com/v/film/feed/" },
+    { title: "Hollywood Reporter", url: "https://hollywoodreporter.com/c/movies/movie-news/feed/" },
+    { title: "Screen Rant", url: "https://screenrant.com/feed/" },
+    { title: "Collider", url: "https://collider.com/feed/" },
   ],
 };
 

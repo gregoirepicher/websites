@@ -392,7 +392,6 @@ body {
     border: 1px solid rgba(226, 176, 74, 0.12);
     border-radius: 8px;
     overflow: hidden;
-    text-decoration: none;
     transition: border-color 0.3s ease, transform 0.2s ease;
     display: flex;
     flex-direction: column;
@@ -401,6 +400,20 @@ body {
 .yt-card:hover {
     border-color: rgba(226, 176, 74, 0.28);
     transform: translateY(-2px);
+}
+
+.yt-card-link {
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.yt-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px 10px;
 }
 
 .yt-thumb {
@@ -433,7 +446,7 @@ body {
 }
 
 .yt-info {
-    padding: 10px 12px 12px;
+    padding: 10px 12px 6px;
     display: flex;
     flex-direction: column;
     gap: 6px;
