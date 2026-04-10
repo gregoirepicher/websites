@@ -430,7 +430,54 @@ async function generateBriefing() {
         await localChatToElement(question, recentArticles, body);
     }
 
+    // Auto-link article titles the model may have omitted links for
+    linkifyBriefing(body);
+
     btn.disabled = false;
+}
+
+// ─── Auto-link briefing titles ────────────────────────────────────────
+function linkifyBriefing(container) {
+    // Build a map of title -> url from all loaded articles
+    const titleMap = new Map();
+    for (const items of Object.values(allArticles)) {
+        for (const a of (items || [])) {
+            if (a.title && a.link) titleMap.set(a.title.trim(), a.link);
+        }
+    }
+    if (titleMap.size === 0) return;
+
+    // Walk text nodes inside the briefing, replacing matching titles with links
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    const replacements = [];
+    let node;
+    while ((node = walker.nextNode())) {
+        // Skip text already inside an <a>
+        if (node.parentElement.closest("a")) continue;
+        const text = node.textContent;
+        for (const [title, url] of titleMap) {
+            if (text.includes(title)) {
+                replacements.push({ node, title, url });
+                break; // one replacement per text node
+            }
+        }
+    }
+    for (const { node, title, url } of replacements) {
+        const parts = node.textContent.split(title);
+        const frag = document.createDocumentFragment();
+        parts.forEach((part, i) => {
+            frag.appendChild(document.createTextNode(part));
+            if (i < parts.length - 1) {
+                const a = document.createElement("a");
+                a.href = url;
+                a.target = "_blank";
+                a.rel = "noopener noreferrer";
+                a.textContent = title;
+                frag.appendChild(a);
+            }
+        });
+        node.parentNode.replaceChild(frag, node);
+    }
 }
 
 // ─── Strip Gemma thinking tags ────────────────────────────────────────
