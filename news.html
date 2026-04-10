@@ -422,7 +422,7 @@ async function generateBriefing() {
         return;
     }
 
-    const question = "You are creating a daily briefing. From the articles provided (all from the last 48 hours), identify the 5-8 most important stories. For each story write a 1-2 sentence summary explaining what happened and why it matters to a CG/VFX professional. Group by theme if multiple stories are related. Lead with the single most significant story. Use markdown with bold titles and bullet points.";
+    const question = "You are creating a daily briefing. From the articles provided (all from the last 48 hours), identify the 5-8 most important stories. For each story write a 1-2 sentence summary explaining what happened and why it matters to a CG/VFX professional. You MUST include a markdown hyperlink to the source article for every story — use the URL from the article data. Group by theme if multiple stories are related. Lead with the single most significant story. Use markdown with bold titles and bullet points.";
 
     if (WORKER_URL) {
         await streamToElement(question, recentArticles, body);
