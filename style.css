@@ -408,6 +408,21 @@ body {
     aspect-ratio: 16 / 9;
     overflow: hidden;
     background: rgba(0, 0, 0, 0.3);
+    position: relative;
+}
+
+.yt-duration {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.03em;
+    line-height: 1.4;
 }
 
 .yt-thumb img {
@@ -444,7 +459,7 @@ body {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 20px;
-    margin-bottom: 100px;
+    margin-bottom: 40px;
 }
 
 .news-box {
@@ -562,21 +577,39 @@ body {
 }
 
 .news-item {
-    padding: 12px 0;
+    padding: 10px 16px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.news-item-icon {
+    width: 16px;
+    height: 16px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    margin-top: 3px;
+    opacity: 0.8;
 }
 
 .news-item:last-child {
     border-bottom: none;
 }
 
+.news-item-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
 .news-link {
     color: var(--color-heading);
     text-decoration: none;
-    font-size: 0.95rem;
+    font-size: 0.88rem;
     line-height: 1.4;
     transition: color 0.2s ease;
 }
@@ -641,6 +674,156 @@ body {
     font-size: 0.9rem;
     font-style: italic;
     padding: 12px 0;
+}
+
+/* Like / Save Button */
+
+.like-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    opacity: 0.5;
+    transition: opacity 0.2s, color 0.2s, transform 0.15s;
+    padding: 2px 4px;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.like-btn:hover {
+    opacity: 1;
+    color: #e25555;
+    transform: scale(1.15);
+}
+
+.like-btn.liked {
+    opacity: 1;
+    color: #e25555;
+}
+
+/* Saved Items Section */
+
+.saved-section {
+    margin-top: 40px;
+    margin-bottom: 100px;
+    background: var(--color-bg-alt);
+    border: 1px solid rgba(226, 176, 74, 0.15);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.saved-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    background: var(--color-surface);
+    border-bottom: 1px solid rgba(226, 176, 74, 0.12);
+}
+
+.saved-header h2 {
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    color: var(--color-heading);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.saved-count {
+    background: rgba(226, 176, 74, 0.12);
+    color: var(--color-text-muted);
+    font-size: 0.72rem;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-family: var(--font-body);
+    font-weight: 400;
+}
+
+.saved-body {
+    padding: 16px 20px;
+}
+
+.saved-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+}
+
+.saved-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--color-surface);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 6px;
+    text-decoration: none;
+    transition: border-color 0.2s;
+}
+
+.saved-card:hover {
+    border-color: rgba(226, 176, 74, 0.25);
+}
+
+.saved-card-icon {
+    width: 16px;
+    height: 16px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    opacity: 0.8;
+}
+
+.saved-card-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.saved-card-title {
+    color: var(--color-heading);
+    font-size: 0.85rem;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.saved-card:hover .saved-card-title {
+    color: var(--color-accent);
+}
+
+.saved-card-meta {
+    color: var(--color-text-muted);
+    font-size: 0.72rem;
+    margin-top: 2px;
+}
+
+.saved-remove {
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    opacity: 0.4;
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 4px;
+    transition: opacity 0.2s, color 0.2s;
+    flex-shrink: 0;
+}
+
+.saved-remove:hover {
+    opacity: 1;
+    color: #e25555;
+}
+
+.saved-empty {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    font-style: italic;
+    text-align: center;
+    padding: 20px 0;
 }
 
 /* ===== AI Chat Panel ===== */

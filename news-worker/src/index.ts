@@ -15,6 +15,7 @@ import YOUTUBE_HANDLES from "../youtube-channels.json";
 interface Env {
   NEWS_CACHE: KVNamespace;
   GOOGLE_AI_KEY: string;
+  YOUTUBE_API_KEY?: string;
 }
 
 interface Article {
@@ -24,6 +25,7 @@ interface Article {
   source: string;
   thumbnail?: string;
   videoId?: string;
+  duration?: string;
 }
 
 interface FeedConfig {
@@ -57,10 +59,13 @@ const CATEGORIES: Record<string, FeedConfig[]> = {
     { title: "Blender Nation", url: "https://www.blendernation.com/feed/" },
     { title: "Blender Dev Blog", url: "https://code.blender.org/feed/" },
     { title: "Unreal Engine", url: "https://www.unrealengine.com/rss" },
+    { title: "Unreal Engine Releases", url: "https://github.com/EpicGames/UnrealEngine/releases.atom" },
     { title: "ComfyUI Blog", url: "https://blog.comfy.org/feed" },
     { title: "ComfyUI Releases", url: "https://github.com/Comfy-Org/ComfyUI/releases.atom" },
     { title: "ComfyUI-Manager Releases", url: "https://github.com/ltdrdata/ComfyUI-Manager/releases.atom" },
     { title: "ASWF", url: "https://www.aswf.io/feed/" },
+    { title: "Maya Learning Channel", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCHmAXsicpLK2EHMZo5_BtDA" },
+    { title: "Open Source For You", url: "https://www.opensourceforu.com/feed/" },
   ],
   "Generative AI & Synthetic Media": [
     { title: "The Decoder", url: "https://the-decoder.com/feed/" },
@@ -71,6 +76,8 @@ const CATEGORIES: Record<string, FeedConfig[]> = {
     { title: "Stability AI Blog", url: "https://stability.ai/feed" },
     { title: "Replicate Blog", url: "https://replicate.com/blog/rss" },
     { title: "MarkTechPost", url: "https://www.marktechpost.com/feed/" },
+    { title: "Civitai Articles", url: "https://civitai.com/feed" },
+    { title: "RunwayML Blog", url: "https://runwayml.com/blog/rss.xml" },
   ],
   "Broader Tech & AI News": [
     { title: "TechCrunch AI", url: "https://techcrunch.com/category/artificial-intelligence/feed/" },
@@ -80,10 +87,14 @@ const CATEGORIES: Record<string, FeedConfig[]> = {
     { title: "ZDNet", url: "http://blogs.zdnet.com/open-source/wp-rss2.php" },
   ],
   "Research & Academic": [
-    { title: "arXiv Computer Graphics", url: "https://arxiv.org/rss/cs.GR" },
-    { title: "arXiv Computer Vision", url: "https://arxiv.org/rss/cs.CV" },
+    { title: "arXiv Computer Graphics", url: "https://rss.arxiv.org/rss/cs.GR" },
+    { title: "arXiv Computer Vision", url: "https://rss.arxiv.org/rss/cs.CV" },
+    { title: "arXiv Machine Learning", url: "https://rss.arxiv.org/rss/cs.LG" },
     { title: "Google AI Blog", url: "https://blog.research.google/feeds/posts/default" },
     { title: "Google Open Source Blog", url: "http://google-opensource.blogspot.com/feeds/posts/default" },
+    { title: "Papers With Code", url: "https://paperswithcode.com/latest.rss" },
+    { title: "Two Minute Papers", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCbfYPyITQ-7l4upoX8nvctg" },
+    { title: "NVIDIA Research Blog", url: "https://blogs.nvidia.com/feed/" },
   ],
   "Studios & Production": [
     { title: "Framestore", url: "https://www.framestore.com/feed" },
@@ -489,6 +500,43 @@ function channelStoreKey(feedUrl: string): string {
   return `yt:video:${m ? m[1] : feedUrl}`;
 }
 
+/** Convert ISO 8601 duration (PT1H2M3S) to human-readable (1:02:03) */
+function formatDuration(iso: string): string {
+  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!m) return "";
+  const h = parseInt(m[1] || "0");
+  const min = parseInt(m[2] || "0");
+  const sec = parseInt(m[3] || "0");
+  if (h > 0) return `${h}:${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  return `${min}:${String(sec).padStart(2, "0")}`;
+}
+
+/** Batch-fetch video durations from YouTube Data API v3 */
+async function enrichWithDurations(videos: Article[], env: Env): Promise<void> {
+  if (!env.YOUTUBE_API_KEY) return;
+  const ids = videos.map((v) => v.videoId).filter(Boolean);
+  if (ids.length === 0) return;
+
+  try {
+    const url = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${ids.join(",")}&key=${env.YOUTUBE_API_KEY}`;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const data = await res.json<any>();
+    const durMap = new Map<string, string>();
+    for (const item of data.items || []) {
+      const dur = formatDuration(item.contentDetails?.duration || "");
+      if (dur) durMap.set(item.id, dur);
+    }
+    for (const video of videos) {
+      if (video.videoId && durMap.has(video.videoId)) {
+        video.duration = durMap.get(video.videoId);
+      }
+    }
+  } catch {
+    // Non-critical — durations are a nice-to-have
+  }
+}
+
 async function handleYouTube(request: Request, env: Env): Promise<Response> {
   // Fast path: aggregate cache
   const cached = await env.NEWS_CACHE.get("youtube:latest");
@@ -541,6 +589,9 @@ async function handleYouTube(request: Request, env: Env): Promise<Response> {
     const db = new Date(b.pubDate).getTime() || 0;
     return db - da;
   });
+
+  // Enrich with durations from YouTube Data API (if key is set)
+  await enrichWithDurations(videos, env);
 
   const json = JSON.stringify(videos);
   // Only cache the aggregate if we actually got results

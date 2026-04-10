@@ -69,6 +69,16 @@
             <!-- Category Grid -->
             <div id="news-container" class="news-grid"></div>
 
+            <!-- Saved Items -->
+            <section class="saved-section" id="saved-section" style="display:none;">
+                <div class="saved-header">
+                    <h2>Saved Items <span class="saved-count" id="saved-count">0</span></h2>
+                </div>
+                <div class="saved-body">
+                    <div id="saved-container" class="saved-grid"></div>
+                </div>
+            </section>
+
         </div>
     </main>
 
@@ -130,6 +140,39 @@ const CATEGORY_ORDER = [
 let allArticles = {};
 let ytVideos = [];
 let chatOpen = true;
+
+// ─── Saved Items (localStorage) ──────────────────────────────────────
+function getSavedItems() {
+    try { return JSON.parse(localStorage.getItem("savedNewsItems") || "[]"); }
+    catch { return []; }
+}
+
+function saveItems(items) {
+    localStorage.setItem("savedNewsItems", JSON.stringify(items));
+    renderSavedSection();
+}
+
+function toggleSaveItem(article) {
+    let items = getSavedItems();
+    const idx = items.findIndex(i => i.link === article.link);
+    if (idx >= 0) { items.splice(idx, 1); }
+    else { items.unshift({ title: article.title, link: article.link, source: article.source, pubDate: article.pubDate }); }
+    saveItems(items);
+}
+
+function isItemSaved(link) {
+    return getSavedItems().some(i => i.link === link);
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────
+function domainFromUrl(url) {
+    try { return new URL(url).hostname; } catch { return ""; }
+}
+
+function faviconUrl(articleUrl) {
+    const domain = domainFromUrl(articleUrl);
+    return domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=32` : "";
+}
 
 // ─── Feed Loading ─────────────────────────────────────────────────────
 async function loadAllFeeds() {
@@ -212,8 +255,10 @@ function renderYouTubeSection(videos) {
               })
             : "";
 
+        const durationHtml = video.duration ? `<span class="yt-duration">${escapeHtml(video.duration)}</span>` : "";
+
         card.innerHTML = `
-            ${thumbUrl ? `<div class="yt-thumb"><img src="${escapeHtml(thumbUrl)}" alt="" loading="lazy"></div>` : ""}
+            ${thumbUrl ? `<div class="yt-thumb"><img src="${escapeHtml(thumbUrl)}" alt="" loading="lazy">${durationHtml}</div>` : ""}
             <div class="yt-info">
                 <span class="yt-title">${escapeHtml(video.title)}</span>
                 <span class="news-meta">
@@ -252,14 +297,20 @@ function renderCategoryBox(name, articles) {
                       month: "short", day: "numeric"
                   })
                 : "";
+            const iconSrc = faviconUrl(article.link);
+            const saved = isItemSaved(article.link);
             li.innerHTML = `
-                <a href="${escapeHtml(article.link)}" target="_blank" rel="noopener noreferrer" class="news-link">
-                    ${escapeHtml(article.title)}
-                </a>
-                <span class="news-meta">
-                    <span class="news-source">${escapeHtml(article.source)}</span>
-                    ${date ? `<span class="news-date">${date}</span>` : ""}
-                </span>
+                ${iconSrc ? `<img class="news-item-icon" src="${escapeHtml(iconSrc)}" alt="" loading="lazy">` : ""}
+                <div class="news-item-text">
+                    <a href="${escapeHtml(article.link)}" target="_blank" rel="noopener noreferrer" class="news-link">
+                        ${escapeHtml(article.title)}
+                    </a>
+                    <span class="news-meta">
+                        <span class="news-source">${escapeHtml(article.source)}</span>
+                        ${date ? `<span class="news-date">${date}</span>` : ""}
+                    </span>
+                </div>
+                <button class="like-btn ${saved ? "liked" : ""}" aria-label="Save item" data-article="${escapeAttr(article)}" onclick="event.stopPropagation(); toggleSaveItem(JSON.parse(this.dataset.article)); this.classList.toggle('liked');">&#9829;</button>
             `;
             list.appendChild(li);
         }
@@ -274,6 +325,57 @@ function escapeHtml(str) {
     const div = document.createElement("div");
     div.textContent = str || "";
     return div.innerHTML;
+}
+
+function escapeAttr(article) {
+    return JSON.stringify({ title: article.title, link: article.link, source: article.source, pubDate: article.pubDate })
+        .replace(/&/g, "&amp;").replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+}
+
+// ─── Saved Items Rendering ───────────────────────────────────────────
+function renderSavedSection() {
+    const section = document.getElementById("saved-section");
+    const container = document.getElementById("saved-container");
+    const countEl = document.getElementById("saved-count");
+    const items = getSavedItems();
+
+    countEl.textContent = items.length;
+
+    if (items.length === 0) {
+        section.style.display = "none";
+        return;
+    }
+
+    section.style.display = "";
+    container.innerHTML = "";
+
+    for (const item of items) {
+        const card = document.createElement("div");
+        card.className = "saved-card";
+
+        const iconSrc = faviconUrl(item.link);
+        const date = item.pubDate
+            ? new Date(item.pubDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+            : "";
+
+        card.innerHTML = `
+            ${iconSrc ? `<img class="saved-card-icon" src="${escapeHtml(iconSrc)}" alt="" loading="lazy">` : ""}
+            <a href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer" class="saved-card-text">
+                <div class="saved-card-title">${escapeHtml(item.title)}</div>
+                <div class="saved-card-meta">${escapeHtml(item.source)}${date ? " &middot; " + date : ""}</div>
+            </a>
+            <button class="saved-remove" aria-label="Remove saved item" data-article="${escapeAttr(item)}" onclick="toggleSaveItem(JSON.parse(this.dataset.article))">&times;</button>
+        `;
+        container.appendChild(card);
+    }
+
+    // Update like buttons on the page to reflect current state
+    document.querySelectorAll(".like-btn[data-article]").forEach(btn => {
+        try {
+            const article = JSON.parse(btn.dataset.article);
+            btn.classList.toggle("liked", isItemSaved(article.link));
+        } catch {}
+    });
 }
 
 // ─── Markdown Rendering ──────────────────────────────────────────────
@@ -467,6 +569,7 @@ document.getElementById("chat-input").addEventListener("input", function() {
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────
+renderSavedSection();
 loadAllFeeds();
 </script>
 
