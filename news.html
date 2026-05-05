@@ -435,7 +435,42 @@ async function generateBriefing() {
     // Auto-link article titles the model may have omitted links for
     linkifyBriefing(body);
 
+    // Add heart buttons next to article links so they can be saved
+    addHeartsToBriefing(body);
+
     btn.disabled = false;
+}
+
+// ─── Heart buttons in briefing ────────────────────────────────────────
+function addHeartsToBriefing(container) {
+    const articleByLink = new Map();
+    for (const items of Object.values(allArticles)) {
+        for (const a of (items || [])) {
+            if (a.link) articleByLink.set(a.link, a);
+        }
+    }
+    if (articleByLink.size === 0) return;
+
+    container.querySelectorAll("a[href]").forEach(link => {
+        if (link.dataset.heartAdded) return;
+        const article = articleByLink.get(link.href) || articleByLink.get(link.getAttribute("href"));
+        if (!article) return;
+        link.dataset.heartAdded = "1";
+        const saved = isItemSaved(article.link);
+        const btn = document.createElement("button");
+        btn.className = "like-btn" + (saved ? " liked" : "");
+        btn.setAttribute("aria-label", "Save article");
+        btn.dataset.article = escapeAttr(article);
+        btn.innerHTML = "&#9829;";
+        btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleSaveItem(JSON.parse(btn.dataset.article));
+            btn.classList.toggle("liked");
+        });
+        link.insertAdjacentText("afterend", " ");
+        link.parentNode.insertBefore(btn, link.nextSibling.nextSibling);
+    });
 }
 
 // ─── Auto-link briefing titles ────────────────────────────────────────
