@@ -274,8 +274,23 @@ function deduplicateArticles(articles: Article[]): Article[] {
 
 // ─── /api/feeds Handler ───────────────────────────────────────────────
 
-async function handleFeeds(request: Request, env: Env): Promise<Response> {
-  const json = await getFeedsJson(env);
+// Stale-while-revalidate: when the 15-min cache has expired, serve the last
+// snapshot immediately and refresh in the background, so no visitor waits
+// ~10s for 46 feeds. A short lock stops concurrent visitors all refreshing.
+async function handleFeeds(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  let json = await env.NEWS_CACHE.get("feeds:latest");
+  if (!json) {
+    const snapshot = await env.NEWS_CACHE.get("feeds:snapshot");
+    if (snapshot) {
+      json = snapshot;
+      if (!(await env.NEWS_CACHE.get("feeds:refreshing"))) {
+        await env.NEWS_CACHE.put("feeds:refreshing", "1", { expirationTtl: 60 });
+        ctx.waitUntil(getFeedsJson(env, true));
+      }
+    } else {
+      json = await getFeedsJson(env, true);
+    }
+  }
   return new Response(json, {
     headers: {
       ...corsHeaders(request),
@@ -757,7 +772,7 @@ async function handleYouTube(request: Request, env: Env): Promise<Response> {
 // ─── Router ───────────────────────────────────────────────────────────
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
     if (request.method === "OPTIONS") {
@@ -766,7 +781,7 @@ export default {
 
     switch (url.pathname) {
       case "/api/feeds":
-        return handleFeeds(request, env);
+        return handleFeeds(request, env, ctx);
 
       case "/api/youtube":
         return handleYouTube(request, env);
