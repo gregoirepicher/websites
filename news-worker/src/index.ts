@@ -733,7 +733,12 @@ async function handleYouTube(request: Request, env: Env): Promise<Response> {
         const storedTime = new Date(storedVideo.pubDate).getTime() || 0;
         const freshTime = new Date(latest.pubDate).getTime() || 0;
         if (freshTime >= storedTime) {
-          await env.NEWS_CACHE.put(storeKey, JSON.stringify(latest));
+          // Skip the write when nothing changed — the free plan allows only
+          // 1,000 KV writes/day, and most refreshes return the same video.
+          const latestJson = JSON.stringify(latest);
+          if (latestJson !== stored) {
+            await env.NEWS_CACHE.put(storeKey, latestJson);
+          }
           return latest;
         }
         return storedVideo;
