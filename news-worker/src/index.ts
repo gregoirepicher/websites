@@ -40,32 +40,25 @@ const CATEGORIES: Record<string, FeedConfig[]> = {
     { title: "CG Channel", url: "https://www.cgchannel.com/feed" },
     { title: "STASH", url: "https://stashmedia.tv/feed" },
     { title: "VFX Voice", url: "https://www.vfxvoice.com/feed" },
-    { title: "Animation World Network", url: "https://www.awn.com/feed" },
+    { title: "Animation World Network", url: "https://www.awn.com/news/feed" },
     { title: "befores & afters", url: "https://beforesandafters.com/feed" },
     { title: "80.lv", url: "https://80.lv/feed" },
     { title: "fxguide", url: "https://www.fxguide.com/feed" },
     { title: "Cartoon Brew", url: "https://www.cartoonbrew.com/feed" },
     { title: "Creative Bloq", url: "https://www.creativebloq.com/feeds.xml" },
-    { title: "CGW Articles", url: "http://www.cgw.com/Publications/Articles-from-Cgw-com/RSS.xml" },
-    { title: "CGW News", url: "http://www.cgw.com/Press-Center/News-from-CGW-com/RSS.xml" },
-    { title: "Animated Views", url: "http://www.animated-news.com/feed/" },
     { title: "Animation Magazine", url: "https://www.animationmagazine.net/feed" },
   ],
   "DCC Tools & Pipeline": [
     { title: "CGSociety", url: "https://cgsociety.org/feed" },
     { title: "Autodesk Area", url: "https://area.autodesk.com/feed/" },
-    { title: "SideFX (Houdini)", url: "https://www.sidefx.com/feed/news/" },
+    { title: "SideFX (Houdini)", url: "https://www.sidefx.com/news/feed/" },
     { title: "Blender.org News", url: "https://www.blender.org/feed/" },
     { title: "Blender Nation", url: "https://www.blendernation.com/feed/" },
-    { title: "Blender Dev Blog", url: "https://code.blender.org/feed/" },
     { title: "Unreal Engine", url: "https://www.unrealengine.com/rss" },
-    { title: "Unreal Engine Releases", url: "https://github.com/EpicGames/UnrealEngine/releases.atom" },
     { title: "ComfyUI Blog", url: "https://blog.comfy.org/feed" },
     { title: "ComfyUI Releases", url: "https://github.com/Comfy-Org/ComfyUI/releases.atom" },
-    { title: "ComfyUI-Manager Releases", url: "https://github.com/ltdrdata/ComfyUI-Manager/releases.atom" },
     { title: "ASWF", url: "https://www.aswf.io/feed/" },
     { title: "Maya Learning Channel", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCHmAXsicpLK2EHMZo5_BtDA" },
-    { title: "Open Source For You", url: "https://www.opensourceforu.com/feed/" },
   ],
   "Generative AI": [
     { title: "The Decoder", url: "https://the-decoder.com/feed/" },
@@ -73,10 +66,9 @@ const CATEGORIES: Record<string, FeedConfig[]> = {
     { title: "AI Models Digest", url: "https://aimodels.substack.com/feed" },
     { title: "VentureBeat AI", url: "https://venturebeat.com/category/ai/feed/" },
     { title: "Hugging Face Blog", url: "https://huggingface.co/blog/feed.xml" },
-    { title: "Stability AI Blog", url: "https://stability.ai/feed" },
+    { title: "Stability AI Blog", url: "https://stability.ai/news/rss.xml" },
     { title: "Replicate Blog", url: "https://replicate.com/blog/rss" },
     { title: "MarkTechPost", url: "https://www.marktechpost.com/feed/" },
-    { title: "Civitai Articles", url: "https://civitai.com/feed" },
     { title: "RunwayML Blog", url: "https://runwayml.com/blog/rss.xml" },
   ],
   "Broader Tech & AI News": [
@@ -84,14 +76,12 @@ const CATEGORIES: Record<string, FeedConfig[]> = {
     { title: "Ars Technica", url: "https://feeds.arstechnica.com/arstechnica/technology-lab" },
     { title: "MIT Technology Review", url: "https://www.technologyreview.com/feed/" },
     { title: "IEEE Spectrum AI", url: "https://spectrum.ieee.org/feeds/topic/artificial-intelligence.rss" },
-    { title: "ZDNet", url: "http://blogs.zdnet.com/open-source/wp-rss2.php" },
   ],
   "Research & Academic": [
     { title: "arXiv Computer Graphics", url: "https://rss.arxiv.org/rss/cs.GR" },
     { title: "arXiv Computer Vision", url: "https://rss.arxiv.org/rss/cs.CV" },
     { title: "arXiv Machine Learning", url: "https://rss.arxiv.org/rss/cs.LG" },
     { title: "Google AI Blog", url: "https://blog.research.google/feeds/posts/default" },
-    { title: "Google Open Source Blog", url: "http://google-opensource.blogspot.com/feeds/posts/default" },
     { title: "Papers With Code", url: "https://paperswithcode.com/latest.rss" },
     { title: "Two Minute Papers", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCbfYPyITQ-7l4upoX8nvctg" },
     { title: "NVIDIA Research Blog", url: "https://blogs.nvidia.com/feed/" },
@@ -188,7 +178,11 @@ async function fetchFeed(feed: FeedConfig): Promise<Article[]> {
 
     const res = await fetch(feed.url, {
       signal: controller.signal,
-      headers: { "User-Agent": "NewsAggregator/1.0" },
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        Accept: "application/rss+xml, application/xml, text/xml, */*",
+      },
     });
     clearTimeout(timeout);
 
@@ -281,16 +275,22 @@ function deduplicateArticles(articles: Article[]): Article[] {
 // ─── /api/feeds Handler ───────────────────────────────────────────────
 
 async function handleFeeds(request: Request, env: Env): Promise<Response> {
+  const json = await getFeedsJson(env);
+  return new Response(json, {
+    headers: {
+      ...corsHeaders(request),
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=300",
+    },
+  });
+}
+
+/** Returns the feeds JSON from KV cache, or fetches and caches it. */
+async function getFeedsJson(env: Env, forceFresh = false): Promise<string> {
   // Check KV cache first
-  const cached = await env.NEWS_CACHE.get("feeds:latest");
-  if (cached) {
-    return new Response(cached, {
-      headers: {
-        ...corsHeaders(request),
-        "Content-Type": "application/json",
-        "Cache-Control": "public, max-age=300",
-      },
-    });
+  if (!forceFresh) {
+    const cached = await env.NEWS_CACHE.get("feeds:latest");
+    if (cached) return cached;
   }
 
   // Fetch all feeds in parallel
@@ -321,14 +321,11 @@ async function handleFeeds(request: Request, env: Env): Promise<Response> {
 
   // Store in KV with TTL
   await env.NEWS_CACHE.put("feeds:latest", json, { expirationTtl: CACHE_TTL });
+  // Permanent copy for the briefing, which must not fetch feeds itself: 46 feeds
+  // would use up the free plan's 50-subrequest limit before the model call.
+  await env.NEWS_CACHE.put("feeds:snapshot", json);
 
-  return new Response(json, {
-    headers: {
-      ...corsHeaders(request),
-      "Content-Type": "application/json",
-      "Cache-Control": "public, max-age=300",
-    },
-  });
+  return json;
 }
 
 // ─── /api/chat Handler ────────────────────────────────────────────────
@@ -379,23 +376,45 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse&key=${env.GOOGLE_AI_KEY}`;
 
   try {
-    const aiResponse = await fetch(apiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-        generationConfig: {
-          temperature: 0.4,
-          maxOutputTokens: 4096,
-        },
-      }),
-    });
+    // Retry transient failures (rate limits, cold starts, 5xx) up to 3 times
+    // before giving up — these are common and usually succeed on retry.
+    let aiResponse: Response | null = null;
+    let lastErrText = "";
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const res = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+          generationConfig: {
+            temperature: 0.4,
+            maxOutputTokens: 4096,
+          },
+        }),
+      });
 
-    if (!aiResponse.ok) {
-      const errText = await aiResponse.text();
+      if (res.ok) {
+        aiResponse = res;
+        break;
+      }
+
+      lastErrText = await res.text();
+      // Only retry on transient errors (429 rate limit, 5xx server errors)
+      if (res.status !== 429 && res.status < 500) {
+        aiResponse = res;
+        break;
+      }
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+      } else {
+        aiResponse = res;
+      }
+    }
+
+    if (!aiResponse!.ok) {
       return new Response(
-        JSON.stringify({ error: `AI API error: ${aiResponse.status}`, details: errText }),
+        JSON.stringify({ error: `AI API error: ${aiResponse!.status}`, details: lastErrText }),
         {
           status: 502,
           headers: { ...corsHeaders(request), "Content-Type": "application/json" },
@@ -410,7 +429,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
     // Process the SSE stream in the background
     (async () => {
-      const reader = aiResponse.body!.getReader();
+      const reader = aiResponse!.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
 
@@ -467,6 +486,133 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
         headers: { ...corsHeaders(request), "Content-Type": "application/json" },
       }
     );
+  }
+}
+
+// ─── /api/briefing Handler ────────────────────────────────────────────
+//
+// The briefing is generated in the background (cron trigger) and stored in
+// KV, so page loads read it instantly instead of waiting 30-100s on the model.
+//   GET  /api/briefing — return the stored briefing (generates one if none exists)
+//   POST /api/briefing — force a regeneration (with a cooldown to avoid abuse)
+
+interface Briefing {
+  markdown: string;
+  generatedAt: string;
+  model: string;
+  articleCount: number;
+  skipped?: string[]; // why earlier models in BRIEFING_MODELS failed, if any
+}
+
+// Tried in order — if a model errors, times out, or returns nothing, the next is used.
+const BRIEFING_MODELS = ["gemma-4-31b-it", "gemini-flash-latest", "gemini-flash-lite-latest"];
+const BRIEFING_MODEL_TIMEOUT_MS = 120_000;
+const BRIEFING_WINDOW_HOURS = 48;
+const BRIEFING_REGEN_COOLDOWN_S = 120;
+const BRIEFING_CRON = "10 */3 * * *"; // must match wrangler.toml
+
+const BRIEFING_PROMPT = `You are creating a daily briefing. From the articles provided (all from the last ${BRIEFING_WINDOW_HOURS} hours), identify the 5-8 most important stories. For each story write a 1-2 sentence summary explaining what happened and why it matters to a CG/VFX professional. You MUST include a markdown hyperlink to the source article for every story — use the URL from the article data. Group by theme if multiple stories are related. Lead with the single most significant story. Use markdown with bold titles and bullet points.`;
+
+/** One non-streaming generateContent call. Returns the answer text, or throws. */
+async function generateWithModel(model: string, prompt: string, env: Env): Promise<string> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), BRIEFING_MODEL_TIMEOUT_MS);
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GOOGLE_AI_KEY}`,
+      {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.4, maxOutputTokens: 4096 },
+        }),
+      }
+    );
+    if (!res.ok) throw new Error(`${model}: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+
+    const data = await res.json<any>();
+    const parts: any[] = data?.candidates?.[0]?.content?.parts ?? [];
+    const text = parts
+      .filter((p) => p.thought !== true && p.text)
+      .map((p) => p.text)
+      .join("")
+      .replace(/<think>[\s\S]*?<\/think>/g, "")
+      .trim();
+    // Treat empty / truncated-to-nothing output as a failure so we fall back
+    if (text.length < 100) {
+      throw new Error(`${model}: empty response (finishReason ${data?.candidates?.[0]?.finishReason})`);
+    }
+    return text;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function generateBriefing(env: Env): Promise<Briefing> {
+  const feedsJson =
+    (await env.NEWS_CACHE.get("feeds:snapshot")) ?? (await env.NEWS_CACHE.get("feeds:latest"));
+  if (!feedsJson) throw new Error("No feeds loaded yet — try again in a minute");
+  const { categories } = JSON.parse(feedsJson) as {
+    categories: Record<string, Article[]>;
+  };
+
+  const cutoff = Date.now() - BRIEFING_WINDOW_HOURS * 3600 * 1000;
+  let articleContext = "";
+  let articleCount = 0;
+  for (const [cat, items] of Object.entries(categories)) {
+    const recent = items.filter((a) => a.pubDate && new Date(a.pubDate).getTime() >= cutoff);
+    if (!recent.length) continue;
+    articleContext += `\n### ${cat}\n`;
+    for (const item of recent) {
+      articleContext += `- [${item.title}](${item.link}) — ${item.source}, ${item.pubDate}\n`;
+    }
+    articleCount += recent.length;
+  }
+  if (articleCount === 0) throw new Error("No articles from the last 48 hours");
+
+  const prompt = `Here are the current news articles:\n${articleContext}\n\nUser question: ${BRIEFING_PROMPT}`;
+
+  const errors: string[] = [];
+  for (const model of BRIEFING_MODELS) {
+    try {
+      const markdown = await generateWithModel(model, prompt, env);
+      const briefing: Briefing = {
+        markdown, generatedAt: new Date().toISOString(), model, articleCount,
+        ...(errors.length && { skipped: errors }),
+      };
+      // Stored without expiry — a failed regeneration keeps serving the last good one
+      await env.NEWS_CACHE.put("briefing:latest", JSON.stringify(briefing));
+      return briefing;
+    } catch (err: any) {
+      errors.push(err?.name === "AbortError" ? `${model}: timed out` : String(err?.message ?? err));
+    }
+  }
+  throw new Error(`All models failed — ${errors.join(" | ")}`);
+}
+
+async function handleBriefing(request: Request, env: Env): Promise<Response> {
+  const headers = { ...corsHeaders(request), "Content-Type": "application/json" };
+
+  if (request.method === "GET") {
+    const cached = await env.NEWS_CACHE.get("briefing:latest");
+    if (cached) return new Response(cached, { headers: { ...headers, "Cache-Control": "public, max-age=60" } });
+  } else {
+    // Manual regenerate: one at a time, at most every couple of minutes
+    if (await env.NEWS_CACHE.get("briefing:lock")) {
+      const cached = await env.NEWS_CACHE.get("briefing:latest");
+      if (cached) return new Response(cached, { headers });
+    }
+    await env.NEWS_CACHE.put("briefing:lock", "1", { expirationTtl: BRIEFING_REGEN_COOLDOWN_S });
+  }
+
+  try {
+    const briefing = await generateBriefing(env);
+    return new Response(JSON.stringify(briefing), { headers });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), { status: 502, headers });
   }
 }
 
@@ -631,6 +777,12 @@ export default {
         }
         return handleChat(request, env);
 
+      case "/api/briefing":
+        if (request.method !== "GET" && request.method !== "POST") {
+          return new Response("Method not allowed", { status: 405 });
+        }
+        return handleBriefing(request, env);
+
       case "/api/health":
         return new Response(
           JSON.stringify({ status: "ok", model: "gemma-4-31b-it" }),
@@ -642,6 +794,16 @@ export default {
 
       default:
         return new Response("Not found", { status: 404 });
+    }
+  },
+
+  // Cron triggers (see wrangler.toml). Feeds and briefing run as separate
+  // invocations so each stays under the per-invocation subrequest limit.
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (event.cron === BRIEFING_CRON) {
+      ctx.waitUntil(generateBriefing(env));
+    } else {
+      ctx.waitUntil(getFeedsJson(env, true));
     }
   },
 };

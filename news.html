@@ -53,7 +53,7 @@
                         <h2 class="briefing-title">Daily Briefing</h2>
                         <span class="briefing-subtitle">Most important stories from the last 48 hours</span>
                     </div>
-                    <button class="btn btn-sm" id="briefing-refresh-btn" onclick="generateBriefing()">Regenerate</button>
+                    <button class="btn btn-sm" id="briefing-refresh-btn" onclick="generateBriefing(true)">Regenerate</button>
                 </div>
                 <div id="briefing-body" class="briefing-body">
                     <div class="spinner-wrap"><div class="spinner"></div>Generating briefing after feeds load...</div>
@@ -128,6 +128,7 @@ const BACKEND = WORKER_URL || "http://localhost:5000";
 const FEEDS_ENDPOINT = WORKER_URL ? BACKEND + "/api/feeds" : BACKEND + "/feeds";
 const YOUTUBE_ENDPOINT = BACKEND + "/api/youtube";
 const CHAT_ENDPOINT = WORKER_URL ? BACKEND + "/api/chat" : BACKEND + "/digest";
+const BRIEFING_ENDPOINT = BACKEND + "/api/briefing";
 
 const CATEGORY_ORDER = [
     "Animation & VFX Industry",
@@ -184,31 +185,27 @@ async function loadAllFeeds() {
     btn.textContent = "Loading...";
     container.innerHTML = '<p class="news-loading" style="grid-column:1/-1">Fetching feeds...</p>';
 
-    try {
-        const [feedsRes, ytRes] = await Promise.all([
-            fetch(FEEDS_ENDPOINT),
-            fetch(YOUTUBE_ENDPOINT).catch(() => null),
-        ]);
+    // YouTube is slower (several seconds when uncached), so it renders on its
+    // own instead of holding up the feeds and briefing.
+    fetch(YOUTUBE_ENDPOINT)
+        .then(res => res.ok ? res.json() : [])
+        .catch(() => [])
+        .then(videos => {
+            ytVideos = videos;
+            renderYouTubeSection(ytVideos);
+        });
 
+    try {
+        const feedsRes = await fetch(FEEDS_ENDPOINT);
         if (!feedsRes.ok) throw new Error(`Server returned ${feedsRes.status}`);
         const data = await feedsRes.json();
         allArticles = data.categories || data;
-
-        // Parse YouTube (separate endpoint, non-blocking)
-        if (ytRes && ytRes.ok) {
-            ytVideos = await ytRes.json();
-        } else {
-            ytVideos = [];
-        }
 
         container.innerHTML = "";
         for (const name of CATEGORY_ORDER) {
             const articles = allArticles[name] || [];
             container.appendChild(renderCategoryBox(name, articles));
         }
-
-        // Render YouTube section
-        renderYouTubeSection(ytVideos);
 
         document.getElementById("last-updated").textContent =
             "Updated " + new Date().toLocaleString();
@@ -386,6 +383,7 @@ function renderSavedSection() {
 // ─── Markdown Rendering ──────────────────────────────────────────────
 function renderMarkdown(md) {
     return md
+        .replace(/^\s*[*-] (.+)$/gm, '- $1') // normalise "* " / indented bullets before italics runs
         .replace(/^### (.+)$/gm, '<h3>$1</h3>')
         .replace(/^## (.+)$/gm, '<h2>$1</h2>')
         .replace(/^# (.+)$/gm, '<h1>$1</h1>')
@@ -400,10 +398,40 @@ function renderMarkdown(md) {
 }
 
 // ─── Daily Briefing ───────────────────────────────────────────────────
-async function generateBriefing() {
+// The worker pre-generates the briefing on a schedule, so a normal load is an
+// instant cache read. `force` (Regenerate button) asks for a fresh one.
+async function generateBriefing(force = false) {
     const body = document.getElementById("briefing-body");
     const btn = document.getElementById("briefing-refresh-btn");
-    body.innerHTML = '<div class="spinner-wrap"><div class="spinner"></div>Generating briefing with Gemma 4...</div>';
+    if (!WORKER_URL) return generateBriefingLocal();
+
+    body.innerHTML = force
+        ? '<div class="spinner-wrap"><div class="spinner"></div>Regenerating briefing (can take up to a minute)...</div>'
+        : '<div class="spinner-wrap"><div class="spinner"></div>Loading briefing...</div>';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch(BRIEFING_ENDPOINT, { method: force ? "POST" : "GET" });
+        const data = await res.json();
+        if (!res.ok || !data.markdown) throw new Error(data.error || `Server returned ${res.status}`);
+
+        const when = new Date(data.generatedAt).toLocaleString([], {
+            month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+        });
+        body.innerHTML = renderMarkdown(data.markdown) +
+            `<p class="news-meta">Generated ${escapeHtml(when)} from ${data.articleCount} articles</p>`;
+        linkifyBriefing(body);
+        addHeartsToBriefing(body);
+    } catch (err) {
+        body.innerHTML = `<p class="chat-error">Could not load briefing: ${escapeHtml(err.message)}</p>`;
+    }
+    btn.disabled = false;
+}
+
+async function generateBriefingLocal() {
+    const body = document.getElementById("briefing-body");
+    const btn = document.getElementById("briefing-refresh-btn");
+    body.innerHTML = '<div class="spinner-wrap"><div class="spinner"></div>Generating briefing...</div>';
     btn.disabled = true;
 
     // Filter to last 48 hours only
@@ -426,10 +454,11 @@ async function generateBriefing() {
 
     const question = "You are creating a daily briefing. From the articles provided (all from the last 48 hours), identify the 5-8 most important stories. For each story write a 1-2 sentence summary explaining what happened and why it matters to a CG/VFX professional. You MUST include a markdown hyperlink to the source article for every story — use the URL from the article data. Group by theme if multiple stories are related. Lead with the single most significant story. Use markdown with bold titles and bullet points.";
 
-    if (WORKER_URL) {
-        await streamToElement(question, recentArticles, body);
-    } else {
-        await localChatToElement(question, recentArticles, body);
+    // Retry transient failures automatically (rate limits, cold starts) before
+    // surfacing an error — most failures succeed on a second attempt.
+    let ok = false;
+    for (let attempt = 0; attempt < 3 && !ok; attempt++) {
+        ok = await localChatToElement(question, recentArticles, body);
     }
 
     // Auto-link article titles the model may have omitted links for
@@ -576,12 +605,16 @@ async function streamToElement(question, articles, targetEl) {
 
         // Streaming complete — remove spinner, show final content
         const final = stripThinking(fullText);
-        targetEl.innerHTML = final
-            ? renderMarkdown(final)
-            : '<p class="news-empty">No response received.</p>';
+        if (final) {
+            targetEl.innerHTML = renderMarkdown(final);
+            return true;
+        }
+        targetEl.innerHTML = '<p class="news-empty">No response received.</p>';
+        return false;
 
     } catch (err) {
         targetEl.innerHTML = `<p class="chat-error">Error: ${escapeHtml(err.message)}</p>`;
+        return false;
     }
 }
 
@@ -594,10 +627,16 @@ async function localChatToElement(question, articles, targetEl) {
         });
         if (!res.ok) throw new Error(`Server returned ${res.status}`);
         const data = await res.json();
-        const text = data.digest || data.response || "No response.";
+        const text = data.digest || data.response || "";
+        if (!text) {
+            targetEl.innerHTML = '<p class="news-empty">No response received.</p>';
+            return false;
+        }
         targetEl.innerHTML = renderMarkdown(text);
+        return true;
     } catch (err) {
         targetEl.innerHTML = `<p class="chat-error">Error: ${escapeHtml(err.message)}</p>`;
+        return false;
     }
 }
 

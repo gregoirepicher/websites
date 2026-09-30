@@ -2,6 +2,11 @@ name = "news-worker"
 main = "src/index.ts"
 compatibility_date = "2026-04-01"
 
+# Every 3 hours: refresh feeds at :00, then pre-generate the briefing at :10
+# (separate invocations — see scheduled() in src/index.ts)
+[triggers]
+crons = ["0 */3 * * *", "10 */3 * * *"]
+
 [[kv_namespaces]]
 binding = "NEWS_CACHE"
 id = "27840a435e044269aa69346dd4d72f10"
