@@ -49,7 +49,7 @@
             <section class="briefing-section">
                 <div class="briefing-header">
                     <div class="briefing-header-left">
-                        <span class="chat-model-badge">Gemma 4</span>
+                        <span class="chat-model-badge" id="briefing-model-badge">AI</span>
                         <h2 class="briefing-title">Daily Briefing</h2>
                         <span class="briefing-subtitle">Most important stories from the last 48 hours</span>
                     </div>
@@ -418,6 +418,7 @@ async function generateBriefing(force = false) {
         const when = new Date(data.generatedAt).toLocaleString([], {
             month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
         });
+        document.getElementById("briefing-model-badge").textContent = modelLabel(data.model);
         body.innerHTML = renderMarkdown(data.markdown) +
             `<p class="news-meta">Generated ${escapeHtml(when)} from ${data.articleCount} articles</p>`;
         linkifyBriefing(body);
@@ -426,6 +427,16 @@ async function generateBriefing(force = false) {
         body.innerHTML = `<p class="chat-error">Could not load briefing: ${escapeHtml(err.message)}</p>`;
     }
     btn.disabled = false;
+}
+
+// "gemma-4-31b-it" -> "Gemma 4", "gemini-flash-lite-latest" -> "Gemini Flash-Lite"
+function modelLabel(id) {
+    const labels = {
+        "gemma-4-31b-it": "Gemma 4",
+        "gemini-flash-latest": "Gemini Flash",
+        "gemini-flash-lite-latest": "Gemini Flash-Lite",
+    };
+    return labels[id] || id || "AI";
 }
 
 async function generateBriefingLocal() {
